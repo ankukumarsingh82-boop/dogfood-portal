@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}New event · Dogfood Portal{% endblock %}
+{% block body %}
+<form class="panel stack" method="post" action="/events">
+  <h1>New event</h1>
+  <p class="muted">All times are UTC. The slug cannot be changed later. The event stays unpublished until you publish it.</p>
+  <div class="form-grid">
+    <label class="span-2"><span>Name</span><input type="text" name="name" required maxlength="200" value="{{ posted.name if posted else '' }}"></label>
+    <label class="span-2"><span>Slug (optional)</span><input type="text" name="slug" maxlength="70" value="{{ posted.slug if posted else '' }}" placeholder="leave blank to generate"></label>
+    <label class="span-2"><span>Description</span><textarea name="description">{{ posted.description if posted else '' }}</textarea></label>
+    <label><span>Starts (UTC)</span><input type="datetime-local" name="starts_at" required value="{{ posted.starts_at if posted else '' }}"></label>
+    <label><span>Ends (UTC)</span><input type="datetime-local" name="ends_at" required value="{{ posted.ends_at if posted else '' }}"></label>
+    <label><span>Submissions open (UTC)</span><input type="datetime-local" name="submission_opens_at" required value="{{ posted.submission_opens_at if posted else '' }}"></label>
+    <label><span>Submission deadline (UTC)</span><input type="datetime-local" name="submission_deadline" required value="{{ posted.submission_deadline if posted else '' }}"></label>
+  </div>
+  <button type="submit">Create event</button>
+</form>
+{% endblock %}

@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}People · Dogfood Portal{% endblock %}
+{% block body %}
+<div class="page">
+  <h1>People</h1>
+  <p class="muted">Visitor is not an account. It is anyone without a session. Stored roles are participant, judge, organizer, and admin. Role checks run on the server.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Email</th><th>Role</th></tr></thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            <td>{{ row.name }}</td>
+            <td class="mono">{{ row.email }}</td>
+            <td>
+              <form method="post" action="/admin/users/{{ row.id }}/role" class="row">
+                <select name="role" aria-label="Role for {{ row.email }}">
+                  {% for role in roles %}
+                    <option value="{{ role }}" {% if row.role == role %}selected{% endif %}>{{ role }}</option>
+                  {% endfor %}
+                </select>
+                <button type="submit">Save</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

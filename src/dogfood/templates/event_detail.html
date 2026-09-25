@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}{{ event.name }} · Dogfood Portal{% endblock %}
+{% block body %}
+<div class="page">
+  <p class="mono muted">{{ event.slug }} · {% if event.published %}Public{% else %}Unpublished{% endif %} · {{ phase_of(event) }}</p>
+  <h1>{{ event.name }}</h1>
+  <p class="prose">{{ event.description }}</p>
+  <p class="mono">Event {{ event.starts_at|when }} → {{ event.ends_at|when }} UTC</p>
+  <p class="mono">Submissions {{ event.submission_opens_at|when }} → {{ event.submission_deadline|when }} UTC</p>
+  <div class="row">
+    {% if event.published %}<a class="button" href="/e/{{ event.slug }}/gallery">Public gallery</a>{% endif %}
+    {% if user and user.role in ("organizer", "admin") %}
+      <a class="button secondary" href="/e/{{ event.slug }}/manage">Manage</a>
+    {% endif %}
+    {% if team and user.role != "judge" %}
+      <a class="button secondary" href="/e/{{ event.slug }}/submission">Edit submission</a>
+    {% endif %}
+  </div>
+
+  <section class="section">
+    <h2>Tracks</h2>
+    {% if tracks %}
+      <div class="cards">
+        {% for track in tracks %}
+          <article class="card">
+            <h3>{{ track.name }}</h3>
+            <p>{{ track.description }}</p>
+          </article>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">No tracks yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="section">
+    <h2>Prizes</h2>
+    {% if prizes %}
+      <ul>
+        {% for prize in prizes %}
+          <li><strong>{{ prize.place }}. {{ prize.name }}</strong>
+            {% if prize.amount_label %}· {{ prize.amount_label }}{% endif %}
+            {% if prize.track %}· {{ prize.track.name }}{% else %}· overall{% endif %}
+            {% if prize.description %}<span class="muted"> — {{ prize.description }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <p class="muted">No prizes yet.</p>
+    {% endif %}
+  </section>
+
+  {% if questions %}
+    <section class="section">
+      <h2>Submission questions</h2>
+      <ul>
+        {% for question in questions %}
+          <li>{{ question.prompt }}{% if question.required %} <span class="mono">required</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endif %}
+
+  <section class="section panel">
+    <h2>Your team</h2>
+    {% if not user %}
+      <p><a href="/login?next=/e/{{ event.slug }}">Log in</a> to form a team. Judges cannot join teams.</p>
+    {% elif user.role == "judge" %}
+      <p>Judges cannot join or create teams. Scoring is not part of this build.</p>
+    {% elif team %}
+      <p>You are on <strong>{{ team.name }}</strong>.</p>
+      <p class="mono">Invite link<br>{{ request.base_url }}join/{{ team.invite_code }}</p>
+      <p><a href="/e/{{ event.slug }}/submission">Open the submission</a></p>
+    {% elif phase_of(event) != "open" %}
+      <p>Team formation follows the submission window, which is {{ phase_of(event) }}.</p>
+    {% else %}
+      <form method="post" action="/e/{{ event.slug }}/teams" class="stack">
+        <label><span>Team name</span><input type="text" name="name" required minlength="2" maxlength="120"></label>
+        <button type="submit">Create team and get an invite link</button>
+      </form>
+      <p class="muted">Or open an invite link someone sent you.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

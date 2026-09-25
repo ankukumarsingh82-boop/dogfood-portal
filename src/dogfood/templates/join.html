@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Join {{ team.name }} · Dogfood Portal{% endblock %}
+{% block body %}
+<div class="panel" style="max-width: 36rem;">
+  <p class="mono muted">{{ event.name }}</p>
+  <h1>Join {{ team.name }}</h1>
+  <p>{{ team.members|length }} member{% if team.members|length != 1 %}s{% endif %} so far.</p>
+  {% if not user %}
+    <p><a class="button" href="/login?next=/join/{{ team.invite_code }}">Log in to join</a></p>
+    <p class="muted">New here? <a href="/register">Register</a> first. Registration always creates a participant.</p>
+  {% elif user.role == "judge" %}
+    <p>Judges cannot join teams.</p>
+  {% elif existing and existing.id == team.id %}
+    <p>You are already on this team.</p>
+    <p><a href="/e/{{ event.slug }}/submission">Edit the submission</a></p>
+  {% elif existing %}
+    <p>You are already on {{ existing.name }} for this event. One team per person.</p>
+  {% elif phase != "open" %}
+    <p>Joining is closed because the submission window is {{ phase }}.</p>
+  {% else %}
+    <form method="post" action="/join/{{ team.invite_code }}">
+      <button type="submit">Join {{ team.name }}</button>
+    </form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Submission · {{ event.name }}{% endblock %}
+{% block body %}
+{% set src = posted if posted else none %}
+<div class="page">
+  <p class="mono"><a href="/e/{{ event.slug }}">{{ event.name }}</a> · {{ team.name }}</p>
+  <h1>{% if project and project.status == "submitted" %}Edit submission{% else %}Project draft{% endif %}</h1>
+  <p class="mono">Window {{ event.submission_opens_at|when }} → {{ event.submission_deadline|when }} UTC · {{ phase }}</p>
+  {% if phase == "early" %}
+    <p class="banner">Submissions are not open yet.</p>
+  {% elif phase == "closed" %}
+    <p class="banner warn">The deadline has passed. This page is read-only, and the server will reject edits.</p>
+  {% else %}
+    <p class="muted">Save a draft any time. Submit when the name, tagline, description, track, and required questions are filled in. You can keep editing after you submit, until the deadline.</p>
+  {% endif %}
+
+  <form class="panel stack" method="post" action="/e/{{ event.slug }}/submission" enctype="multipart/form-data">
+    <div class="form-grid">
+      <label class="span-2"><span>Name</span>
+        <input type="text" name="name" maxlength="120" {% if phase != "open" %}disabled{% endif %}
+          value="{{ src.name if src else (project.name if project else '') }}">
+      </label>
+      <label class="span-2"><span>Tagline</span>
+        <input type="text" name="tagline" maxlength="180" {% if phase != "open" %}disabled{% endif %}
+          value="{{ src.tagline if src else (project.tagline if project else '') }}">
+      </label>
+      <label class="span-2"><span>Description</span>
+        <textarea name="description" {% if phase != "open" %}disabled{% endif %}>{{ src.description if src else (project.description if project else '') }}</textarea>
+      </label>
+      <label><span>Track</span>
+        <select name="track_id" {% if phase != "open" %}disabled{% endif %}>
+          <option value="">Choose a track</option>
+          {% for track in tracks %}
+            {% set selected_id = (src.track_id if src else (project.track_id if project else '')) %}
+            <option value="{{ track.id }}" {% if selected_id|string == track.id|string %}selected{% endif %}>{{ track.name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label><span>Tech tags</span>
+        <input type="text" name="tech_tags" placeholder="postgres, paper" {% if phase != "open" %}disabled{% endif %}
+          value="{{ src.tech_tags if src else tag_text }}">
+      </label>
+      <label><span>Repository URL</span>
+        <input type="text" name="repository_url" {% if phase != "open" %}disabled{% endif %}
+          value="{{ src.repository_url if src else (project.repository_url if project else '') }}">
+      </label>
+      <label><span>Live link</span>
+        <input type="text" name="live_url" {% if phase != "open" %}disabled{% endif %}
+          value="{{ src.live_url if src else (project.live_url if project else '') }}">
+      </label>
+      <label class="span-2"><span>Demo video URL</span>
+        <input type="text" name="demo_video_url" {% if phase != "open" %}disabled{% endif %}
+          value="{{ src.demo_video_url if src else (project.demo_video_url if project else '') }}">
+      </label>
+      <label><span>Thumbnail URL</span>
+        <input type="text" name="thumbnail_url" placeholder="https://… or leave blank to keep the current file" {% if phase != "open" %}disabled{% endif %}
+          value="{{ src.thumbnail_url if src else '' }}">
+      </label>
+      <label><span>Thumbnail file</span>
+        <input type="file" name="thumbnail" accept="image/png,image/jpeg,image/gif,image/webp" {% if phase != "open" %}disabled{% endif %}>
+      </label>
+    </div>
+    {% if project and project.thumbnail_path %}
+      <p class="muted">Current thumbnail</p>
+      <img src="{{ project.thumbnail_path }}" alt="" style="max-width: 240px;">
+      {% if phase == "open" %}<label class="check"><input type="checkbox" name="clear_thumbnail"> Remove thumbnail</label>{% endif %}
+    {% endif %}
+
+    {% if questions %}
+      <h2>Organizer questions</h2>
+      {% for question in questions %}
+        {% set answer = src.answers.get(question.id, '') if src else answers.get(question.id, '') %}
+        <label>
+          <span>{{ question.prompt }}{% if question.required %} · required{% endif %}</span>
+          {% if question.help_text %}<em class="muted">{{ question.help_text }}</em>{% endif %}
+          {% if question.field_type == "long_text" %}
+            <textarea name="q_{{ question.id }}" {% if phase != "open" %}disabled{% endif %}>{{ answer }}</textarea>
+          {% elif question.field_type == "single_select" %}
+            <select name="q_{{ question.id }}" {% if phase != "open" %}disabled{% endif %}>
+              <option value="">Choose</option>
+              {% for option in question.options_json or [] %}
+                <option value="{{ option }}" {% if answer == option %}selected{% endif %}>{{ option }}</option>
+              {% endfor %}
+            </select>
+          {% else %}
+            <input type="text" name="q_{{ question.id }}" value="{{ answer }}" {% if phase != "open" %}disabled{% endif %}>
+          {% endif %}
+        </label>
+      {% endfor %}
+    {% endif %}
+
+    {% if phase == "open" %}
+      <div class="row">
+        <button type="submit" name="intent" value="draft" class="secondary">Save draft</button>
+        <button type="submit" name="intent" value="submit">Submit</button>
+      </div>
+    {% endif %}
+  </form>
+
+  {% if project %}
+    <section class="section">
+      <h2>Image gallery</h2>
+      {% if project.images %}
+        <div class="gallery-row">
+          {% for image in project.images %}
+            <figure>
+              <img src="{{ image.path }}" alt="{{ image.caption }}">
+              {% if image.caption %}<figcaption>{{ image.caption }}</figcaption>{% endif %}
+              {% if phase == "open" %}
+                <form method="post" action="/e/{{ event.slug }}/submission/images/{{ image.id }}/delete">
+                  <button class="linkish" type="submit">Remove</button>
+                </form>
+              {% endif %}
+            </figure>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">No gallery images yet.</p>
+      {% endif %}
+      {% if phase == "open" %}
+        <form class="form-grid panel" method="post" action="/e/{{ event.slug }}/submission/images" enctype="multipart/form-data">
+          <label><span>Image file</span><input type="file" name="image_file" accept="image/png,image/jpeg,image/gif,image/webp"></label>
+          <label><span>or image URL</span><input type="text" name="image_url" placeholder="https://"></label>
+          <label class="span-2"><span>Caption</span><input type="text" name="caption" maxlength="200"></label>
+          <div class="span-2"><button type="submit">Add image</button></div>
+        </form>
+      {% endif %}
+    </section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Register · Dogfood Portal{% endblock %}
+{% block body %}
+<form class="panel stack" method="post" action="/register" style="max-width: 32rem;">
+  <h1>Register</h1>
+  <p class="muted">New accounts are participants. An admin can change that later. You cannot pick your own role.</p>
+  <label><span>Name</span><input type="text" name="name" required maxlength="200" value="{{ posted.name if posted else '' }}"></label>
+  <label><span>Email</span><input type="email" name="email" required autocomplete="username" value="{{ posted.email if posted else '' }}"></label>
+  <label><span>Password</span><input type="password" name="password" required minlength="8" autocomplete="new-password"></label>
+  <label><span>Confirm password</span><input type="password" name="password_confirm" required minlength="8" autocomplete="new-password"></label>
+  <button type="submit">Create account</button>
+</form>
+{% endblock %}

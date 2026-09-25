@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Dogfood Portal{% endblock %}
+{% block body %}
+<section class="hero">
+  <p class="mono muted">Hackathon Raptors · self-hosted</p>
+  <h1>The submission desk you can run with the network off.</h1>
+  <p class="lede">Organizers publish an event. Participants form a team with an invite link and edit a project until the server-side deadline. Visitors search the public gallery.</p>
+  <div class="row">
+    <a class="button" href="/events">Browse events</a>
+    {% if not user %}<a class="button secondary" href="/register">Create a participant account</a>{% endif %}
+  </div>
+</section>
+<section class="section">
+  <h2>Events</h2>
+  {% if events %}
+    <div class="cards">
+      {% for event in events %}
+        <article class="card">
+          <p class="mono muted">{% if event.published %}Public{% else %}Unpublished{% endif %} · {{ phase_of(event) }}</p>
+          <h3><a href="/e/{{ event.slug }}">{{ event.name }}</a></h3>
+          <p>{{ event.description[:180] }}{% if event.description|length > 180 %}…{% endif %}</p>
+          <p class="mono">Closes {{ event.submission_deadline|when }} UTC</p>
+          {% if event.published %}<a href="/e/{{ event.slug }}/gallery">Gallery</a>{% endif %}
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="muted">No public events yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

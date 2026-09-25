@@ -1,0 +1,24 @@
+<p class="muted mono">{{ projects|length }} project{% if projects|length != 1 %}s{% endif %}</p>
+{% if projects %}
+  <div class="grid">
+    {% for project in projects %}
+      <a class="project-card" href="/e/{{ event.slug }}/p/{{ project.id }}">
+        {% if project.thumbnail_path %}
+          <img class="thumb" src="{{ project.thumbnail_path }}" alt="">
+        {% else %}
+          <div class="monogram" aria-hidden="true">{{ project.name[:1] }}</div>
+        {% endif %}
+        <div class="body">
+          <strong>{{ project.name }}</strong>
+          <span>{{ project.tagline }}</span>
+          <span class="pills">
+            {% if project.track %}<span class="pill track">{{ project.track.name }}</span>{% endif %}
+            {% for tag in project.tags %}<span class="pill">{{ tag.tag }}</span>{% endfor %}
+          </span>
+        </div>
+      </a>
+    {% endfor %}
+  </div>
+{% else %}
+  <p>No submitted projects match that search.</p>
+{% endif %}

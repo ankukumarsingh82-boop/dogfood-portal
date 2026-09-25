@@ -1,0 +1,11 @@
+# Tiers this repository actually implements.
+# The acceptance suite, when published, is the receipt. This file is the claim.
+
+claimed = ["T1"]
+pitch = "Self-hosted submission desk: sessions, roles, events, invite teams, deadline-locked drafts, and a public gallery."
+
+[tiers]
+T1 = true
+T2 = false
+T3 = false
+T4 = false

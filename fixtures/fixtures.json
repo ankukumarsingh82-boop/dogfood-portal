@@ -1,0 +1,82 @@
+{
+  "placeholder": true,
+  "schema_version": 1,
+  "notes": "Official kickoff fixtures replace this file. While placeholder is true, or the record arrays are empty, the portal loads a small built-in demo instead. Set placeholder to false and fill the arrays to import. schema_example is documentation and is never imported on its own. See DATA-MODEL.md.",
+  "schema_example": {
+    "event": {
+      "slug": "example-event",
+      "name": "Example Event",
+      "description": "Canonical shape for fixtures.json.",
+      "starts_at": "2026-09-25T18:00:00Z",
+      "ends_at": "2026-09-28T18:00:00Z",
+      "submission_opens_at": "2026-09-25T18:00:00Z",
+      "submission_deadline": "2026-09-28T18:00:00Z",
+      "published": true,
+      "tracks": [
+        {"slug": "general", "name": "General", "description": "Default track"}
+      ],
+      "prizes": [
+        {"name": "Grand prize", "description": "Overall", "place": 1, "amount_label": "$800", "track": null}
+      ],
+      "custom_questions": [
+        {
+          "key": "cut",
+          "prompt": "What did you cut?",
+          "type": "long_text",
+          "required": true,
+          "options": []
+        }
+      ]
+    },
+    "users": [
+      {
+        "email": "person@example.com",
+        "name": "Person Example",
+        "password": "change-me-please",
+        "role": "participant"
+      }
+    ],
+    "judges": [
+      {"email": "judge@example.com", "name": "Judge Example"}
+    ],
+    "teams": [
+      {
+        "name": "Example Team",
+        "invite_code": "example-invite",
+        "members": ["person@example.com"]
+      }
+    ],
+    "projects": [
+      {
+        "name": "Example Project",
+        "tagline": "A short line",
+        "description": "Long description of the example project.",
+        "thumbnail_url": "",
+        "gallery": [],
+        "demo_video_url": "https://example.com/demo",
+        "repository_url": "https://example.com/repo",
+        "live_url": "https://example.com",
+        "tech_tags": ["python"],
+        "track": "general",
+        "team": "Example Team",
+        "status": "submitted",
+        "custom_answers": {"cut": "scope"}
+      }
+    ],
+    "scores": [
+      {
+        "project": "Example Project",
+        "judge": "judge@example.com",
+        "criterion": "impact",
+        "score": 4,
+        "notes": "Retained for a future judging tier. Not displayed."
+      }
+    ]
+  },
+  "event": null,
+  "users": [],
+  "judges": [],
+  "teams": [],
+  "projects": [],
+  "scores": []
+}

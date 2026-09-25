@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}{{ project.name }} · {{ event.name }}{% endblock %}
+{% block body %}
+<article class="page">
+  <p class="mono"><a href="/e/{{ event.slug }}/gallery">Gallery</a> · {{ event.name }}</p>
+  {% if project.thumbnail_path %}
+    <img src="{{ project.thumbnail_path }}" alt="" style="max-height: 320px; width: 100%; object-fit: cover;">
+  {% endif %}
+  <div class="project-head">
+    <p class="pills" style="margin-top: 0.8rem;">
+      {% if project.status != "submitted" %}<span class="pill">draft</span>{% endif %}
+      {% if project.track %}<span class="pill track">{{ project.track.name }}</span>{% endif %}
+      {% for tag in project.tags %}<span class="pill">{{ tag.tag }}</span>{% endfor %}
+    </p>
+    <h1>{{ project.name }}</h1>
+    <p class="lede">{{ project.tagline }}</p>
+    <p class="muted">Team {{ project.team.name }}</p>
+  </div>
+  <p class="prose">{{ project.description }}</p>
+  <p class="links">
+    {% if project.repository_url %}<a href="{{ project.repository_url }}">Repository</a>{% endif %}
+    {% if project.live_url %}<a href="{{ project.live_url }}">Live link</a>{% endif %}
+    {% if project.demo_video_url %}<a href="{{ project.demo_video_url }}">Demo video</a>{% endif %}
+  </p>
+  {% if project.images %}
+    <div class="gallery-row section">
+      {% for image in project.images %}
+        <figure>
+          <img src="{{ image.path }}" alt="{{ image.caption }}">
+          {% if image.caption %}<figcaption>{{ image.caption }}</figcaption>{% endif %}
+        </figure>
+      {% endfor %}
+    </div>
+  {% endif %}
+  {% if qa %}
+    <section class="section">
+      <h2>Questions</h2>
+      {% for question, value in qa %}
+        <h3>{{ question.prompt }}</h3>
+        <p class="prose">{{ value }}</p>
+      {% endfor %}
+    </section>
+  {% endif %}
+</article>
+{% endblock %}

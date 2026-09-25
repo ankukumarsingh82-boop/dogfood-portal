@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Events · Dogfood Portal{% endblock %}
+{% block body %}
+<div class="page">
+  <h1>Events</h1>
+  <p class="muted">Published events are visible to visitors. Organizers also see unpublished drafts.</p>
+  {% if events %}
+    <div class="cards">
+      {% for event in events %}
+        <article class="card">
+          <p class="mono muted">{% if event.published %}Public{% else %}Unpublished{% endif %} · {{ phase_of(event) }}</p>
+          <h2><a href="/e/{{ event.slug }}">{{ event.name }}</a></h2>
+          <p class="mono">{{ event.submission_opens_at|when }} → {{ event.submission_deadline|when }} UTC</p>
+          <div class="row">
+            {% if event.published %}<a href="/e/{{ event.slug }}/gallery">Gallery</a>{% endif %}
+            {% if user and user.role in ("organizer", "admin") %}
+              <a href="/e/{{ event.slug }}/manage">Manage</a>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p>No events to show.</p>
+  {% endif %}
+</div>
+{% endblock %}

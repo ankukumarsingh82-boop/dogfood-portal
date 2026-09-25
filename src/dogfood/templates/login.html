@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Log in · Dogfood Portal{% endblock %}
+{% block body %}
+<div class="split">
+  <form class="panel stack" method="post" action="/login">
+    <h1>Log in</h1>
+    <input type="hidden" name="next" value="{{ next_url or '/' }}">
+    <label><span>Email</span><input type="email" name="email" autocomplete="username" required value="{{ posted_email or '' }}"></label>
+    <label><span>Password</span><input type="password" name="password" autocomplete="current-password" required></label>
+    <button type="submit">Log in</button>
+    <p class="muted">No account? <a href="/register">Register as a participant</a>.</p>
+  </form>
+  {% if demo_accounts %}
+    <aside class="panel">
+      <h2>Demo logins</h2>
+      <p class="muted">Shown because this database was seeded with the built-in demo, not official fixtures.</p>
+      <table class="demo-table">
+        <thead><tr><th>Role</th><th>Email</th><th>Password</th></tr></thead>
+        <tbody>
+          {% for account in demo_accounts %}
+            <tr>
+              <td class="mono">{{ account.role }}</td>
+              <td class="mono">{{ account.email }}</td>
+              <td class="mono">{{ account.password }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="mono">Invite: /join/night-shift-invite</p>
+    </aside>
+  {% endif %}
+</div>
+{% endblock %}
