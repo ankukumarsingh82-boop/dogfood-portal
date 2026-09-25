@@ -12,7 +12,7 @@ Open **http://localhost:8000**.
 
 Postgres 16 and the app both come from Compose. There is no cloud account, no hosted database, and no Auth0, Clerk, or other external API. The first boot creates the schema and seeds data. Later boots keep the Docker volume. `docker compose down -v` (or `SEED_FORCE=1`) reloads the seed.
 
-`fixtures/fixtures.json` is the official kickoff file, so the first boot imports **Sample Hack 2026** at `/e/evt_01`. That event's `submissions_close` is `2026-03-01T18:00:00Z`, which is in the past, and the importer leaves it there. The gallery is public. A submission POST returns 403. Ids such as `evt_01`, `trk_04`, and `tm_01` are kept, underscores included. Fixture accounts that have no password log in with `fixture-pass-72`.
+`fixtures/fixtures.json` is the official kickoff file, so the first boot imports **Sample Hack 2026** at `/e/evt_01`. That event's `submissions_close` is `2026-03-01T18:00:00Z`, which is in the past, and the importer leaves it there. The gallery is public. A submission POST returns 403. Ids such as `evt_01`, `trk_04`, and `tm_01` are kept, underscores included. A few fixture teams share a display name, and one team has two projects. The extra project is stored on a sibling team so both stay in the gallery; startup prints that warning. Fixture accounts that have no password log in with `fixture-pass-72`.
 
 If the fixtures file is missing, empty, or `"placeholder": true`, Compose loads the built-in **Weekend Field Test** instead (`/e/field-test`, invite `/join/night-shift-invite`). Invalid JSON aborts startup.
 
