@@ -5,8 +5,10 @@
 With the portal up from `docker compose up --build`:
 
 ```bash
-python3 acceptance/run.py .dogfood.toml --fixtures fixtures/fixtures.json
+python3 acceptance/run.py .dogfood.toml > acceptance-report.txt
 ```
+
+`run.py` looks for `fixtures.json` in the working directory, beside itself, and beside `.dogfood.toml`. The repo root file is a link to `fixtures/fixtures.json`, which is also what Compose seeds. `example.dogfood.toml` is the upstream template. The claim this portal actually makes is `.dogfood.toml`.
 
 The checker does not log in. It sends the cookies in `[auth]`. T1 expects a public gallery at `/e/evt_01/gallery` that contains fixture project titles, and a participant POST to `/e/evt_01/submission` that returns 4xx because Sample Hack closed on 2026-03-01.
 

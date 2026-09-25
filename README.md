@@ -75,7 +75,7 @@ Submission fields: name, tagline, long description, thumbnail, image gallery, de
 `.dogfood.toml` claims T1 only. The checker still runs its T2 requests; those routes 404, so T2 stays unverified. `example.dogfood.toml` is the upstream template and is not this repo's claim.
 
 ```bash
-python3 acceptance/run.py .dogfood.toml --fixtures fixtures/fixtures.json
+python3 acceptance/run.py .dogfood.toml > acceptance-report.txt
 ```
 
 ## Tests
@@ -92,6 +92,7 @@ Tests use SQLite. Compose uses Postgres 16.
 - `src/dogfood/` application
 - `tests/` pytest suite
 - `fixtures/fixtures.json` official kickoff data (event, tracks, judges, teams, projects, scores)
+- `fixtures.json` at the repo root, a link to that file, so `acceptance/run.py` finds it without an extra flag
 - `docker-compose.yml` app on port 8000, Postgres not published to the host
 
 More detail: [ARCHITECTURE.md](ARCHITECTURE.md), [DATA-MODEL.md](DATA-MODEL.md), [JUDGING.md](JUDGING.md).
