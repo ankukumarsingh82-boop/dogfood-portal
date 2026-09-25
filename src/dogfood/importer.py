@@ -1,14 +1,16 @@
 """Load fixtures.json into the relational schema.
 
-The official kickoff file is not in this repo yet. This importer accepts the
-canonical shape documented in DATA-MODEL.md and a handful of aliases so a
-dump shaped like a real event (tracks, judges, projects, scores) still loads.
-Score rows are retained and are not shown in the T1 interface.
+Accepts the canonical shape in DATA-MODEL.md, the official kickoff file
+(event id, submissions_close, team and track ids, criteria dicts), and a
+handful of aliases. External ids that contain underscores are kept as slugs.
+A deadline that is already in the past stays in the past. Score rows are
+retained and are not shown in the T1 interface.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -37,6 +39,7 @@ from dogfood.models import (
 from dogfood.textutil import clean_http_url, clip, normalize_email, normalize_tag, slugify, valid_email
 
 DEFAULT_FIXTURE_PASSWORD = "fixture-pass-72"
+_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,79}$")
 _QUESTION_TYPES = {
     "text": "short_text",
     "short_text": "short_text",
@@ -109,15 +112,17 @@ def import_payload(db: Session, data: dict) -> dict:
     if not events:
         report["warnings"].append("No event could be derived from the fixture")
         return report
+    report["_default_hash"] = hash_password(DEFAULT_FIXTURE_PASSWORD)
     _import_people(db, data, report)
     for index, shell in enumerate(events):
         top = index == 0
         event = _import_event(db, data, shell, report, take_top_level=top)
         report["events"] += 1
-        _import_teams(db, data, event, report, take_top_level=top)
-        _import_projects(db, data, event, shell, report, take_top_level=top)
+        team_index = _import_teams(db, data, event, report, take_top_level=top)
+        titles = _import_projects(db, data, event, shell, report, team_index, take_top_level=top)
         if top:
-            _import_scores(db, data, event, report)
+            _import_scores(db, data, event, report, titles)
+    report.pop("_default_hash", None)
     return report
 
 
@@ -196,12 +201,21 @@ def _event_shells(data: dict) -> list[dict]:
     return []
 
 
+def _preserve_slug(value: str | None, limit: int = 80) -> str:
+    """Keep ids such as evt_01 and trk_04. Slugify free text."""
+    raw = (value or "").strip()
+    if raw and _ID.fullmatch(raw):
+        return raw[:limit]
+    return slugify(raw, min(limit, 70))
+
+
 def _unique_event_slug(db: Session, base: str) -> str:
-    slug = slugify(base, 70) or "event"
+    slug = _preserve_slug(base, 80) or "event"
     candidate = slug
     n = 2
     while db.scalar(select(Event.id).where(Event.slug == candidate)):
-        candidate = f"{slug}-{n}"
+        suffix = f"-{n}"
+        candidate = f"{slug[: 80 - len(suffix)]}{suffix}"
         n += 1
     return candidate
 
@@ -209,26 +223,45 @@ def _unique_event_slug(db: Session, base: str) -> str:
 def _import_event(db: Session, data: dict, shell: dict, report: dict, take_top_level: bool = True) -> Event:
     now = clock.utcnow()
     name = clip(_first(shell, "name", "title", default="Imported hackathon"), 200)
-    slug_source = _first(shell, "slug") or name
+    slug_source = _first(shell, "id", "slug") or name
+    deadline_raw = (
+        shell.get("submission_deadline")
+        or shell.get("deadline")
+        or shell.get("submissions_close")
+        or shell.get("submissions_deadline")
+    )
+    opens_raw = shell.get("submission_opens_at") or shell.get("submission_open")
+    starts_raw = shell.get("starts_at") or shell.get("start")
+    ends_raw = shell.get("ends_at") or shell.get("end")
+    if deadline_raw:
+        deadline = _parse_dt(deadline_raw, now + timedelta(days=3))
+    else:
+        deadline = now + timedelta(days=3)
+    if opens_raw:
+        opens = _parse_dt(opens_raw, deadline - timedelta(days=3))
+    elif deadline_raw:
+        opens = deadline - timedelta(days=3)
+    else:
+        opens = now
+    starts = _parse_dt(starts_raw, opens) if starts_raw else opens
+    ends = _parse_dt(ends_raw, deadline) if ends_raw else deadline
+    # A supplied close time is never moved later. Pull the open bound back instead.
+    if opens > deadline:
+        opens = deadline - timedelta(hours=1)
+        _warn(report, f"Moved submission open earlier so it stays before the deadline ({slug_source})")
+    if starts > ends:
+        starts = ends - timedelta(hours=1)
+        _warn(report, f"Moved event start earlier so it stays before the end ({slug_source})")
     event = Event(
         slug=_unique_event_slug(db, slug_source),
         name=name,
         description=clip(_first(shell, "description", "about"), 20000),
-        starts_at=_parse_dt(shell.get("starts_at") or shell.get("start"), now),
-        ends_at=_parse_dt(shell.get("ends_at") or shell.get("end"), now + timedelta(days=3)),
-        submission_opens_at=_parse_dt(
-            shell.get("submission_opens_at") or shell.get("submission_open"), now
-        ),
-        submission_deadline=_parse_dt(
-            shell.get("submission_deadline") or shell.get("deadline"), now + timedelta(days=3)
-        ),
+        starts_at=starts,
+        ends_at=ends,
+        submission_opens_at=opens,
+        submission_deadline=deadline,
         published=bool(shell.get("published", True)),
     )
-    if event.submission_opens_at > event.submission_deadline:
-        event.submission_deadline = event.submission_opens_at + timedelta(days=1)
-        _warn(report, f"Adjusted deadline for {event.slug} so the window is ordered")
-    if event.starts_at > event.ends_at:
-        event.ends_at = event.starts_at + timedelta(days=1)
     db.add(event)
     db.flush()
     tracks = _as_list(shell.get("tracks"))
@@ -261,7 +294,7 @@ def _add_track(db: Session, event: Event, row, report: dict) -> Track | None:
     if not isinstance(row, dict):
         return None
     name = clip(_first(row, "name", "title", default="Track"), 120)
-    base = slugify(_first(row, "slug") or name, 70) or "track"
+    base = _preserve_slug(_first(row, "id", "slug") or name, 80) or "track"
     slug = base
     n = 2
     while db.scalar(select(Track.id).where(Track.event_id == event.id, Track.slug == slug)):
@@ -281,10 +314,16 @@ def _add_track(db: Session, event: Event, row, report: dict) -> Track | None:
 def _find_track(db: Session, event: Event, label: str) -> Track | None:
     if not label:
         return None
-    wanted = label.strip().lower()
+    wanted = label.strip()
+    wanted_l = wanted.lower()
     tracks = db.scalars(select(Track).where(Track.event_id == event.id)).all()
     for track in tracks:
-        if track.slug == wanted or track.name.lower() == wanted or track.slug == slugify(wanted, 70):
+        if (
+            track.slug == wanted
+            or track.slug.lower() == wanted_l
+            or track.name.lower() == wanted_l
+            or track.slug == slugify(wanted, 70)
+        ):
             return track
     return None
 
@@ -383,7 +422,7 @@ def _ensure_user(db: Session, row: dict, report: dict, default_role: str = Role.
             report["users_default_password"] += 1
             _warn(report, f"{email} had an unusable password; set the fixture default")
     else:
-        stored = hash_password(DEFAULT_FIXTURE_PASSWORD)
+        stored = report.get("_default_hash") or hash_password(DEFAULT_FIXTURE_PASSWORD)
         report["users_default_password"] += 1
     user = User(
         email=email,
@@ -402,12 +441,30 @@ def _ensure_user_email(db: Session, email: str, report: dict, role: str = Role.P
 
 
 def _unique_invite(db: Session, preferred: str | None) -> str:
-    code = slugify(preferred, 40) if preferred else ""
+    raw = (preferred or "").strip()
+    if raw and _ID.fullmatch(raw):
+        code = raw[:64]
+    else:
+        code = slugify(preferred, 40) if preferred else ""
     if not code:
         code = secrets.token_urlsafe(9)
+    original = code
+    n = 2
     while db.scalar(select(Team.id).where(Team.invite_code == code)):
-        code = secrets.token_urlsafe(9)
+        suffix = f"-{n}"
+        code = f"{original[: 64 - len(suffix)]}{suffix}"
+        n += 1
+        if n > 40:
+            code = secrets.token_urlsafe(9)
     return code
+
+
+def _remember_team(index: dict, team: Team, row: dict) -> None:
+    index[team.name.lower()] = team
+    ref = _first(row, "id", "slug")
+    if ref:
+        index[ref] = team
+        index[ref.lower()] = team
 
 
 def _ensure_team(
@@ -454,11 +511,12 @@ def _ensure_team(
     return team
 
 
-def _import_teams(db: Session, data: dict, event: Event, report: dict, take_top_level: bool = True) -> None:
+def _import_teams(db: Session, data: dict, event: Event, report: dict, take_top_level: bool = True) -> dict:
+    index: dict = {}
     nested = []
     if isinstance(data.get("event"), dict):
         nested = _as_list(data["event"].get("teams"))
-    rows = ( _as_list(data.get("teams")) + nested) if take_top_level else []
+    rows = (_as_list(data.get("teams")) + nested) if take_top_level else []
     for row in rows:
         if isinstance(row, str):
             row = {"name": row}
@@ -467,14 +525,17 @@ def _import_teams(db: Session, data: dict, event: Event, report: dict, take_top_
         event_label = _first(row, "event", "event_slug")
         if event_label and event_label not in {event.slug, event.name}:
             continue
-        _ensure_team(
+        invite = _first(row, "invite_code", "invite", "code") or _first(row, "id") or None
+        team = _ensure_team(
             db,
             event,
             _first(row, "name", "team", default="Team"),
             report,
-            invite_code=_first(row, "invite_code", "invite", "code") or None,
+            invite_code=invite,
             member_emails=_emails(row.get("members") or row.get("users") or row.get("emails")),
         )
+        _remember_team(index, team, row)
+    return index
 
 
 def _status_of(row: dict) -> str:
@@ -484,7 +545,38 @@ def _status_of(row: dict) -> str:
     return "submitted"
 
 
-def _import_projects(db: Session, data: dict, event: Event, shell: dict, report: dict, take_top_level: bool = True) -> None:
+def _team_for_project(db: Session, event: Event, row: dict, name: str, members: list[str], report: dict, team_index: dict) -> Team:
+    raw = row.get("team")
+    if isinstance(raw, dict):
+        ref = _first(raw, "id", "slug", "name")
+        nested = _emails(raw.get("members"))
+        if nested:
+            members = nested
+    else:
+        ref = _first(row, "team_id", "team", "team_slug", "team_name")
+    team = team_index.get(ref) or team_index.get(ref.lower()) if ref else None
+    if team is None:
+        label = ref or f"{name} team"
+        team = _ensure_team(db, event, label, report, invite_code=ref or None, member_emails=members)
+        _remember_team(team_index, team, {"id": ref, "name": team.name})
+    existing = db.scalar(select(Project).where(Project.team_id == team.id))
+    if existing is not None:
+        team = _ensure_team(db, event, f"{team.name} / {name}", report, member_emails=members)
+        _warn(report, f"Team already had a project; stored '{name}' on a sibling team")
+    return team
+
+
+def _import_projects(
+    db: Session,
+    data: dict,
+    event: Event,
+    shell: dict,
+    report: dict,
+    team_index: dict | None = None,
+    take_top_level: bool = True,
+) -> dict[str, str]:
+    team_index = team_index if team_index is not None else {}
+    titles: dict[str, str] = {}
     rows = _as_list(shell.get("projects")) + _as_list(shell.get("submissions"))
     if take_top_level:
         rows = rows + _as_list(data.get("projects")) + _as_list(data.get("submissions"))
@@ -495,22 +587,24 @@ def _import_projects(db: Session, data: dict, event: Event, shell: dict, report:
         if event_label and event_label not in {event.slug, event.name}:
             continue
         name = clip(_first(row, "name", "title", "project_name", default="Untitled"), 120)
-        team_name = _first(row, "team", "team_name", default="") or f"{name} team"
         members = _emails(row.get("members") or row.get("authors") or row.get("author_email") or row.get("author"))
-        team = _ensure_team(db, event, team_name, report, member_emails=members)
-        existing = db.scalar(select(Project).where(Project.team_id == team.id))
-        if existing is not None:
-            team = _ensure_team(db, event, f"{team.name} / {name}", report, member_emails=members)
-            _warn(report, f"Team already had a project; stored '{name}' on a sibling team")
-        track_label = _first(row, "track", "track_slug", "track_name")
+        team = _team_for_project(db, event, row, name, members, report, team_index)
+        track_raw = row.get("track")
+        if isinstance(track_raw, dict):
+            track_label = _first(track_raw, "id", "slug", "name")
+        else:
+            track_label = _first(row, "track_id", "track", "track_slug", "track_name")
         track = _find_track(db, event, track_label)
         if track_label and track is None:
-            track = _add_track(db, event, {"name": track_label}, report)
-        tagline = clip(_first(row, "tagline", "subtitle"), 180)
-        description = clip(_first(row, "description", "long_description", "about", "body", "summary"), 20000)
-        if not tagline:
-            tagline = clip(description or name, 180)
+            track = _add_track(db, event, {"id": track_label, "name": track_label}, report)
+        summary = clip(_first(row, "summary"), 20000)
+        description = clip(_first(row, "description", "long_description", "about", "body"), 20000) or summary
+        tagline = clip(_first(row, "tagline", "subtitle"), 180) or clip(summary or description or name, 180)
         status = _status_of(row)
+        submitted_raw = row.get("submitted_at")
+        submitted_at = None
+        if status == "submitted":
+            submitted_at = _parse_dt(submitted_raw, clock.utcnow()) if submitted_raw else clock.utcnow()
         project = Project(
             event_id=event.id,
             team_id=team.id,
@@ -525,10 +619,16 @@ def _import_projects(db: Session, data: dict, event: Event, shell: dict, report:
             ),
             live_url=_optional_url(_first(row, "live_url", "live_link", "demo_url", "website", "url"), report),
             status=status,
-            submitted_at=clock.utcnow() if status == "submitted" else None,
+            submitted_at=submitted_at,
         )
         db.add(project)
         db.flush()
+        ext_id = _first(row, "id")
+        if ext_id:
+            titles[ext_id] = name
+            titles[ext_id.lower()] = name
+        titles[name] = name
+        titles[name.lower()] = name
         tags = row.get("tech_tags") or row.get("tags") or row.get("technologies") or []
         if isinstance(tags, str):
             tags = [part for part in tags.split(",")]
@@ -572,6 +672,7 @@ def _import_projects(db: Session, data: dict, event: Event, shell: dict, report:
                 _store_score(db, event, payload, report)
         report["projects"] += 1
     db.flush()
+    return titles
 
 
 def _optional_url(value: str, report: dict) -> str:
@@ -584,7 +685,7 @@ def _optional_url(value: str, report: dict) -> str:
         return ""
 
 
-def _import_scores(db: Session, data: dict, event: Event, report: dict) -> None:
+def _import_scores(db: Session, data: dict, event: Event, report: dict, titles: dict | None = None) -> None:
     raw = data.get("scores")
     if raw is None:
         raw = data.get("judgements", data.get("judgments", []))
@@ -606,28 +707,46 @@ def _import_scores(db: Session, data: dict, event: Event, report: dict) -> None:
             else:
                 rows.append({"project": key, "score": val})
     for row in rows:
-        _store_score(db, event, row if isinstance(row, dict) else {"score": row}, report)
+        _store_score(db, event, row if isinstance(row, dict) else {"score": row}, report, titles)
 
 
-def _store_score(db: Session, event: Event, row: dict, report: dict) -> None:
-    project = row.get("project") or row.get("project_name") or row.get("submission") or ""
+def _label_project(project, titles: dict | None) -> str:
     if isinstance(project, dict):
-        project = _first(project, "name", "title")
-    judge = row.get("judge") or row.get("judge_email") or row.get("reviewer") or ""
-    if isinstance(judge, dict):
-        judge = _first(judge, "email", "name")
-    criterion = row.get("criterion") or row.get("criteria") or row.get("category") or ""
-    if isinstance(criterion, dict):
-        criterion = _first(criterion, "name", "key")
-    score = row.get("score", row.get("value", row.get("rating", "")))
+        project = _first(project, "id", "name", "title")
+    text = str(project or "")
+    if titles:
+        return titles.get(text) or titles.get(text.lower()) or text
+    return text
+
+
+def _insert_score(db: Session, event: Event, project: str, judge: str, criterion: str, score, payload: dict, report: dict) -> None:
     db.add(
         RetainedScore(
             event_id=event.id,
-            project_name=clip(str(project), 200),
+            project_name=clip(project, 200),
             judge_email=clip(str(judge), 255),
             criterion=clip(str(criterion), 200),
-            score_value=clip(str(score), 64),
-            payload=row,
+            score_value=clip("" if score is None else str(score), 64),
+            payload=payload,
         )
     )
     report["scores"] += 1
+
+
+def _store_score(db: Session, event: Event, row: dict, report: dict, titles: dict | None = None) -> None:
+    project = _label_project(row.get("project") or row.get("project_name") or row.get("submission") or "", titles)
+    judge = row.get("judge") or row.get("judge_email") or row.get("reviewer") or ""
+    if isinstance(judge, dict):
+        judge = _first(judge, "email", "id", "name")
+    criteria = row.get("criteria")
+    if isinstance(criteria, dict) and criteria and all(not isinstance(value, (dict, list)) for value in criteria.values()):
+        for key, value in criteria.items():
+            _insert_score(db, event, project, judge, str(key), value, row, report)
+        return
+    criterion = row.get("criterion") or row.get("category") or ""
+    if not criterion and isinstance(criteria, str):
+        criterion = criteria
+    if isinstance(criterion, dict):
+        criterion = _first(criterion, "name", "key")
+    score = row.get("score", row.get("value", row.get("rating", "")))
+    _insert_score(db, event, project, judge, str(criterion), score, row, report)

@@ -103,7 +103,9 @@ File: `fixtures/fixtures.json`, overridable with `FIXTURES_PATH`.
 | Invalid JSON | Process exits. Demo is not substituted. |
 | Otherwise, if it has users, judges, teams, projects, events, or an event object | Import |
 
-`schema_example` inside the placeholder file is documentation. It is not imported unless you pass that object to the importer yourself.
+The file shipped in this repo is the official kickoff dump, not a placeholder. Its event id `evt_01` is stored as the slug. `submissions_close` becomes `submission_deadline` and is not moved forward when it is already past. Missing open and start times are placed before that close. Track ids (`trk_01` …) and team ids (`tm_01` …) are kept, including underscores. A project’s `team` and `track` fields are those ids. `title` / `summary` / `repo_url` / `submitted_at` map onto name, tagline, description, repository URL, and `submitted_at`. A second project on the same team is stored on a sibling team so both stay in the gallery. A score `criteria` object becomes one retained row per criterion. Users with no password share one bcrypt hash of `fixture-pass-72`.
+
+The same importer still accepts the canonical shape below. External ids that match `[A-Za-z0-9][A-Za-z0-9_-]*` are not slugified.
 
 Canonical shape:
 
@@ -144,7 +146,9 @@ Canonical shape:
 }
 ```
 
-A flatter dump also loads. Top-level `event_name`, `tracks`, `projects`, and `judges` are enough; a missing event becomes "Imported hackathon". Aliases include `title`/`long_description`/`github`/`technologies`/`team_name`/`track_name`, and score keys `submission`, `reviewer`, `category`, `rating`. `organiser` is stored as `organizer`. Users with no password can log in with `fixture-pass-72` (printed once at startup, not per user).
+A flatter dump also loads. Top-level `event_name`, `tracks`, `projects`, and `judges` are enough; a missing event becomes "Imported hackathon". Aliases include `title`/`long_description`/`github`/`technologies`/`team_name`/`track_name`, and score keys `submission`, `reviewer`, `category`, `rating`, plus official `submissions_close`, `repo_url`, and `summary`. `organiser` is stored as `organizer`. Users with no password can log in with `fixture-pass-72` (printed once at startup, not per user).
+
+Seed also inserts stable `user_sessions` rows (`org_dogfood_t1`, `jdg_a_dogfood_t1`, `jdg_b_dogfood_t1`, `prt_dogfood_t1`) and, when the fixture file has no staff, the `admin@dogfood.local`, `organizer@dogfood.local`, and `participant@dogfood.local` accounts. Those session tokens are how `acceptance/run.py` authenticates. They are not a T2 judging API.
 
 The importer keeps going on messy rows: duplicate project names are both stored, a second project on the same team is placed on a sibling team, unknown tracks are created, bad URLs are dropped, and a judge is not added to a team. Warnings are printed at startup. Designed for a dump on the order of 40 projects, 30 judges, and 8 tracks, including a reviewer whose scores do not vary and projects that have no score row.
 

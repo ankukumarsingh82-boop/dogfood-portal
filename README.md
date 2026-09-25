@@ -10,34 +10,33 @@ docker compose up --build
 
 Open **http://localhost:8000**.
 
-Postgres and the app both come from Compose. There is no cloud account, no hosted database, and no Auth0, Clerk, or other external API. The first boot creates the schema and seeds data. Later boots keep the Docker volume.
+Postgres 16 and the app both come from Compose. There is no cloud account, no hosted database, and no Auth0, Clerk, or other external API. The first boot creates the schema and seeds data. Later boots keep the Docker volume. `docker compose down -v` (or `SEED_FORCE=1`) reloads the seed.
 
-`fixtures/fixtures.json` is still a placeholder (`"placeholder": true`), so the built-in demo event is loaded. When the official kickoff file arrives, replace `fixtures/fixtures.json` and reset the volume:
+`fixtures/fixtures.json` is the official kickoff file, so the first boot imports **Sample Hack 2026** at `/e/evt_01`. That event's `submissions_close` is `2026-03-01T18:00:00Z`, which is in the past, and the importer leaves it there. The gallery is public. A submission POST returns 403. Ids such as `evt_01`, `trk_04`, and `tm_01` are kept, underscores included. Fixture accounts that have no password log in with `fixture-pass-72`.
 
-```bash
-docker compose down -v
-docker compose up --build
-```
+If the fixtures file is missing, empty, or `"placeholder": true`, Compose loads the built-in **Weekend Field Test** instead (`/e/field-test`, invite `/join/night-shift-invite`). Invalid JSON aborts startup.
 
-Startup logs print which seed ran. Demo passwords appear in the logs only for the built-in seed, and on the login page while that seed is active.
+### Logins
 
-### Demo logins
+Staff accounts are created even when the official file is imported, so an organizer can still make a second event:
 
 | Role | Email | Password |
 | --- | --- | --- |
 | Admin | admin@dogfood.local | admin-pass-72 |
 | Organizer | organizer@dogfood.local | organizer-pass-72 |
-| Judge | judge@dogfood.local | judge-pass-72 |
-| Participant | participant@dogfood.local | participant-pass-72 |
-| Participant (team lead, draft) | teammate@dogfood.local | teammate-pass-72 |
-| Participant (gallery project) | author@dogfood.local | author-pass-72 |
-| Participant (second gallery project) | maker@dogfood.local | maker-pass-72 |
+| Participant (no team yet) | participant@dogfood.local | participant-pass-72 |
+| Fixture judge or teammate | address in `fixtures.json` | fixture-pass-72 |
 
-The seeded event is **Weekend Field Test** at `/e/field-test`. Its gallery already has two submitted projects. Invite link for the draft team Night Shift:
+Sample Hack cannot demonstrate draft-and-edit, because it is already closed. Log in as the organizer, create an event whose deadline is in the future, publish it, then use `participant@dogfood.local` to form a team and submit. The built-in seed, when it is the one that loaded, also includes `judge@dogfood.local` / `judge-pass-72`, `teammate@dogfood.local`, `author@dogfood.local`, and `maker@dogfood.local` (same `*-pass-72` pattern). Those passwords are printed at startup and on the login page only for the built-in seed.
 
-http://localhost:8000/join/night-shift-invite
+The acceptance checker does not log in. Seed inserts these cookies (14 days):
 
-`participant@dogfood.local` is not on a team yet, so that account can create one or accept the invite.
+| Role | Cookie |
+| --- | --- |
+| Organizer | `dogfood_session=org_dogfood_t1` |
+| Judge A | `dogfood_session=jdg_a_dogfood_t1` |
+| Judge B | `dogfood_session=jdg_b_dogfood_t1` |
+| Participant | `dogfood_session=prt_dogfood_t1` |
 
 All times in the product are UTC.
 
@@ -73,7 +72,11 @@ Submission fields: name, tagline, long description, thumbnail, image gallery, de
 | T3 Public voting | Not built. No comments, ballots, or abuse controls. |
 | T4 API and stretch | Not built. No documented public API, webhooks, certificates, or embeddable widget. `/docs` is disabled on purpose. |
 
-The official acceptance suite is not in this repo. See [acceptance/README.md](acceptance/README.md). There is no `acceptance-report.txt` because that file would be invented.
+`.dogfood.toml` claims T1 only. The checker still runs its T2 requests; those routes 404, so T2 stays unverified. `example.dogfood.toml` is the upstream template and is not this repo's claim.
+
+```bash
+python3 acceptance/run.py .dogfood.toml --fixtures fixtures/fixtures.json
+```
 
 ## Tests
 
@@ -88,7 +91,7 @@ Tests use SQLite. Compose uses Postgres 16.
 
 - `src/dogfood/` application
 - `tests/` pytest suite
-- `fixtures/fixtures.json` placeholder plus the canonical example under `schema_example`
+- `fixtures/fixtures.json` official kickoff data (event, tracks, judges, teams, projects, scores)
 - `docker-compose.yml` app on port 8000, Postgres not published to the host
 
 More detail: [ARCHITECTURE.md](ARCHITECTURE.md), [DATA-MODEL.md](DATA-MODEL.md), [JUDGING.md](JUDGING.md).

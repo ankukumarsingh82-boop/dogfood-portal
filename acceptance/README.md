@@ -1,12 +1,15 @@
 # Acceptance suite
 
-The official Dogfood acceptance suite was not in this repository at build time. Drop it in this directory when it is published and run it against the portal from `docker compose up`.
+`run.py` is the official Dogfood checker (stdlib only). This repo claims T1 in `.dogfood.toml`.
 
-This repo does not ship a fabricated `acceptance-report.txt`. Tier claims live in `.dogfood.toml` and are limited to T1.
-
-Our own tests, which are not a substitute for the official suite, are in `tests/` and run with:
+With the portal up from `docker compose up --build`:
 
 ```bash
-pip install -r requirements-dev.txt
-pytest
+python3 acceptance/run.py .dogfood.toml --fixtures fixtures/fixtures.json
 ```
+
+The checker does not log in. It sends the cookies in `[auth]`. T1 expects a public gallery at `/e/evt_01/gallery` that contains fixture project titles, and a participant POST to `/e/evt_01/submission` that returns 4xx because Sample Hack closed on 2026-03-01.
+
+T2 requests (judge scores, peer isolation, CSV export) are part of the same script. Those routes are not implemented, so they fail. That is the honest result. Do not flip `claimed` to include T2 until those checks pass.
+
+`acceptance-report.txt` is the output of that command, not a hand-written summary.

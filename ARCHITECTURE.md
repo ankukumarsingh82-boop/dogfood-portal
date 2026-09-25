@@ -43,7 +43,8 @@ On an empty database the process reads `fixtures/fixtures.json`.
 
 - Missing, empty, or `"placeholder": true` loads the built-in demo event `field-test`.
 - Invalid JSON aborts startup. The demo is not used to hide a broken official file.
-- Any other file with users, judges, teams, projects, or an event is imported. See `DATA-MODEL.md` for the shape and the aliases.
+- Any other file with users, judges, teams, projects, or an event is imported. Official ids stay intact (`evt_01`, `trk_04`, `tm_01`). `submissions_close` is honored even when it is in the past. See `DATA-MODEL.md`.
+- Seed inserts four stable session cookies so `acceptance/run.py` can call the portal without a login form. It also ensures an admin, an organizer, and an unattached participant exist.
 
 Restarting compose does not reseed a volume that already has users. `docker compose down -v` drops it. `SEED_FORCE=1` drops and reloads on the next boot; leave it at `0` in normal use.
 

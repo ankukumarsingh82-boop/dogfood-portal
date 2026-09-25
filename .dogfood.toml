@@ -1,11 +1,23 @@
-# Tiers this repository actually implements.
-# The acceptance suite, when published, is the receipt. This file is the claim.
+# Claim for this repository. The acceptance checker reads these sections.
+# T2 routes are listed so the checker can run; they 404. This file does not claim T2.
 
+[portal]
+base_url = "http://localhost:8000"
+
+[tiers]
 claimed = ["T1"]
 pitch = "Self-hosted submission desk: sessions, roles, events, invite teams, deadline-locked drafts, and a public gallery."
 
-[tiers]
-T1 = true
-T2 = false
-T3 = false
-T4 = false
+[auth]
+# Stable session rows inserted at seed. The checker never logs in.
+organizer   = "Cookie: dogfood_session=org_dogfood_t1"
+judge_a     = "Cookie: dogfood_session=jdg_a_dogfood_t1"
+judge_b     = "Cookie: dogfood_session=jdg_b_dogfood_t1"
+participant = "Cookie: dogfood_session=prt_dogfood_t1"
+
+[routes]
+gallery      = "/e/evt_01/gallery"
+submit       = "/e/evt_01/submission"
+judge_scores = "/e/evt_01/judge/scores"
+peer_scores  = "/e/evt_01/judge/scores?judge=judge_a"
+csv_export   = "/e/evt_01/export.csv"

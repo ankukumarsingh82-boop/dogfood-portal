@@ -6,7 +6,7 @@
 
 ## What happens to score rows today
 
-If `fixtures/fixtures.json` contains a `scores` array (or `judgements` / `judgments`), those rows are stored in `retained_scores` so the import is not lossy. They are not shown on any page, not returned to participants or judges, and not turned into a ranking. The organizer JSON export includes them under `retained_scores_unprocessed` and labels them as raw import rows, not results.
+If `fixtures/fixtures.json` contains a `scores` array (or `judgements` / `judgments`), those rows are stored in `retained_scores` so the import is not lossy. A `criteria` object such as `{functionality, quality, innovation}` is expanded into one row per criterion. The original object stays on the payload. They are not shown on any page, not returned to participants or judges, and not turned into a ranking. The organizer JSON export includes them under `retained_scores_unprocessed` and labels them as raw import rows, not results.
 
 A judge account can log in and read the public gallery. A judge cannot open another person's submission editor, cannot join a team, and cannot read a score API. There is no score API. `GET /e/{slug}/scores` is a 404.
 

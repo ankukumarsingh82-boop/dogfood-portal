@@ -6,12 +6,14 @@ import json
 from datetime import timedelta
 from pathlib import Path
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from dogfood import clock
+from dogfood.auth import hash_password
 from dogfood.config import Settings
 from dogfood.importer import classify_fixture, import_payload
-from dogfood.models import AppMeta
+from dogfood.models import AppMeta, Role, User, UserSession
 
 DEMO_ACCOUNTS = [
     {"name": "Avery Admin", "email": "admin@dogfood.local", "password": "admin-pass-72", "role": "admin"},
@@ -24,6 +26,14 @@ DEMO_ACCOUNTS = [
 ]
 
 INVITE_CODE = "night-shift-invite"
+
+# The acceptance checker never logs in. It sends these Cookie values.
+CHECKER_SESSIONS = {
+    "organizer": "org_dogfood_t1",
+    "judge_a": "jdg_a_dogfood_t1",
+    "judge_b": "jdg_b_dogfood_t1",
+    "participant": "prt_dogfood_t1",
+}
 
 
 def builtin_payload() -> dict:
@@ -147,15 +157,82 @@ def run_seed(db: Session, settings: Settings) -> str:
             )
         for warning in report["warnings"]:
             print(f"  warning: {warning}")
+        _ensure_staff(db)
+        _plant_checker_sessions(db, settings)
+        print("  staff logins (not in the fixture file):")
+        print("    admin@dogfood.local  admin-pass-72  (admin)")
+        print("    organizer@dogfood.local  organizer-pass-72  (organizer)")
+        print("    participant@dogfood.local  participant-pass-72  (participant, no team yet)")
+        print("  Sample Hack is closed. Create a new event to try draft and edit.")
+        _print_checker_cookies()
         return "fixture"
     import_payload(db, builtin_payload())
     _meta(db, "seed_source", "builtin")
+    _plant_checker_sessions(db, settings)
     print("seed: built-in demo data (fixtures file missing, empty, or marked placeholder)")
     print("Demo logins:")
     for account in DEMO_ACCOUNTS:
         print(f"  {account['email']}  {account['password']}  ({account['role']})")
     print(f"Invite link for Night Shift: /join/{INVITE_CODE}")
+    _print_checker_cookies()
     return "builtin"
+
+
+def _account(email: str) -> dict:
+    for account in DEMO_ACCOUNTS:
+        if account["email"] == email:
+            return account
+    raise KeyError(email)
+
+
+def _ensure_staff(db: Session) -> None:
+    """Keep organizer tools available when the fixture file has no staff accounts."""
+    for email in ("admin@dogfood.local", "organizer@dogfood.local", "participant@dogfood.local"):
+        account = _account(email)
+        existing = db.scalar(select(User).where(User.email == account["email"]))
+        if existing is not None:
+            continue
+        db.add(
+            User(
+                email=account["email"],
+                name=account["name"],
+                password_hash=hash_password(account["password"]),
+                role=account["role"],
+            )
+        )
+    db.flush()
+
+
+def _plant_checker_sessions(db: Session, settings: Settings) -> None:
+    organizer = db.scalar(select(User).where(User.email == "organizer@dogfood.local"))
+    judges = list(db.scalars(select(User).where(User.role == Role.JUDGE).order_by(User.id)).all())
+    participants = list(
+        db.scalars(select(User).where(User.role == Role.PARTICIPANT).order_by(User.id)).all()
+    )
+    fallback = organizer or (participants[0] if participants else None)
+    if fallback is None:
+        return
+    chosen = {
+        CHECKER_SESSIONS["organizer"]: organizer or fallback,
+        CHECKER_SESSIONS["judge_a"]: judges[0] if judges else fallback,
+        CHECKER_SESSIONS["judge_b"]: judges[1] if len(judges) > 1 else (judges[0] if judges else fallback),
+        CHECKER_SESSIONS["participant"]: participants[0] if participants else fallback,
+    }
+    expires = clock.utcnow() + timedelta(days=settings.session_days)
+    for token, user in chosen.items():
+        row = db.get(UserSession, token)
+        if row is None:
+            db.add(UserSession(id=token, user_id=user.id, expires_at=expires))
+        else:
+            row.user_id = user.id
+            row.expires_at = expires
+    db.flush()
+
+
+def _print_checker_cookies() -> None:
+    print("Acceptance cookies (the checker does not log in):")
+    for role, token in CHECKER_SESSIONS.items():
+        print(f"  {role}  Cookie: dogfood_session={token}")
 
 
 def _meta(db: Session, key: str, value: str) -> None:
