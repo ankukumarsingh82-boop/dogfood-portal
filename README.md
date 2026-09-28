@@ -2,6 +2,12 @@
 
 Self-hosted submission desk for the [Dogfood 72-Hour Hackathon](https://dogfoodhack.com) (Hackathon Raptors). Organizers run it on a laptop with one command. This repository claims **T1 only**.
 
+## Demo video
+
+[~4:40 T1 lifecycle walkthrough](https://github.com/ankukumarsingh82-boop/dogfood-portal/releases/download/demo-t1/dogfood-portal-t1-demo.mp4) (also on the [`demo-t1` release](https://github.com/ankukumarsingh82-boop/dogfood-portal/releases/tag/demo-t1)).
+
+Covers: organizer create/publish → participant team/submit → public gallery → deadline 403. **T2 judging is not claimed** and is not shown.
+
 ## Run
 
 ```bash
